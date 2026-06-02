@@ -2,6 +2,7 @@ import { useState, type FC } from "react";
 import { useLocation } from "wouter";
 import { setAuthUser } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { identifyUser, trackEvent } from "@/lib/analytics";
 
 const POSITIONS = [
   { value: "GK", label: "Goalkeeper", short: "GK", emoji: "🧤" },
@@ -24,6 +25,7 @@ const AuthPage: FC = () => {
   const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
   const [registeredUserId, setRegisteredUserId] = useState<number | null>(null);
+  const [registeredUsername, setRegisteredUsername] = useState<string>("");
   const [currentPosition, setCurrentPosition] = useState("");
   const [goalPosition, setGoalPosition] = useState("");
   const [savingPositions, setSavingPositions] = useState(false);
@@ -57,17 +59,24 @@ const AuthPage: FC = () => {
         userId: data.userId,
         username: data.username,
         fullName: data.fullName,
-        isPremium: false,
+        isPremium: data.isPremium || false,
+      });
+
+      identifyUser(data.userId, data.username, data.fullName);
+      trackEvent(mode === "login" ? "user_signed_in" : "user_registered", {
+        userId: data.userId,
+        username: data.username,
       });
 
       if (mode === "register") {
         setRegisteredUserId(data.userId);
+        setRegisteredUsername(data.username);
         setStep("survey");
       } else {
         navigate("/");
       }
     } catch {
-      toast({ title: "Error", description: "Connection failed. Please try again.", variant: "destructive" });
+      toast({ title: "Connection Error", description: "Could not reach the server. Please try again.", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -86,8 +95,9 @@ const AuthPage: FC = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ currentPosition, goalPosition }),
       });
+      trackEvent("position_selected", { currentPosition, goalPosition });
     } catch {
-      // Non-critical — user can set later
+      // Non-critical
     } finally {
       setSavingPositions(false);
     }
@@ -115,7 +125,6 @@ const AuthPage: FC = () => {
             </p>
           </div>
 
-          {/* Step indicator */}
           <div className="flex items-center gap-2 mb-6">
             <div className="flex items-center gap-1">
               <div className="w-6 h-6 rounded-full bg-[#FF6B00] flex items-center justify-center text-xs font-bold text-black">✓</div>
@@ -260,6 +269,7 @@ const AuthPage: FC = () => {
               placeholder="Choose a username"
               autoCapitalize="none"
               autoCorrect="off"
+              autoComplete="username"
               required
               className="w-full bg-[#1A1A1A] border border-[#2A2A2A] text-white rounded-lg px-4 py-3 focus:outline-none focus:border-[#FF6B00] transition-colors"
             />
@@ -273,7 +283,8 @@ const AuthPage: FC = () => {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Choose a strong password"
+              placeholder={mode === "register" ? "Min. 6 characters" : "Your password"}
+              autoComplete={mode === "register" ? "new-password" : "current-password"}
               required
               className="w-full bg-[#1A1A1A] border border-[#2A2A2A] text-white rounded-lg px-4 py-3 focus:outline-none focus:border-[#FF6B00] transition-colors"
             />

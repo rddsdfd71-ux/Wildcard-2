@@ -2,6 +2,9 @@ import { createRoot } from "react-dom/client";
 import { Component, type ReactNode } from "react";
 import App from "./App";
 import "./index.css";
+import { initPostHog } from "./lib/analytics";
+
+initPostHog();
 
 class ErrorBoundary extends Component<
   { children: ReactNode },
@@ -76,7 +79,6 @@ class ErrorBoundary extends Component<
   }
 }
 
-// Force-unregister ALL service workers on every load so stale caches never block updates
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {

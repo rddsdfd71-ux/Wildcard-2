@@ -1,0 +1,2 @@
+- [Fullstack Architecture](fullstack-arch.md) — Express backend (port 3001) + Vite frontend (port 5000) with proxy; both started via `npm run dev` using concurrently
+- [PostHog EU Setup](posthog-setup.md) — PostHog EU cloud configured; analytics module at src/lib/analytics.ts; init in main.tsx; identify on login/register

@@ -93,7 +93,8 @@ export default function Settings() {
   const handleLogout = () => {
     clearAuthUser();
     queryClient.clear();
-    window.location.href = "/auth";
+    import("@/lib/analytics").then(({ resetAnalytics }) => resetAnalytics());
+    window.location.href = "/";
   };
 
   const displayName = profile?.fullName || authUser?.fullName || authUser?.username || "Wild Card Player";
