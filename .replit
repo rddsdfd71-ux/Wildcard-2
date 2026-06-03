@@ -1,3 +1,4 @@
+
 modules = ["nodejs-20"]
 [nix]
 channel = "stable-25_05"
@@ -32,3 +33,6 @@ outputType = "webview"
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[deployment]
+deploymentTarget = "cloudrun"
