@@ -47,7 +47,7 @@ const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
 
 function rateLimit(windowMs: number, maxRequests: number) {
   return (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const key = `${req.ip}:${req.path}`;
+    const key = `${req.ip}:${req.originalUrl}`;
     const now = Date.now();
     const entry = rateLimitStore.get(key);
     if (!entry || now > entry.resetAt) {
@@ -202,9 +202,31 @@ app.post("/api/users/:id/workout-sessions", async (req, res) => {
       "INSERT INTO workout_sessions (user_id, workout_type, duration, difficulty, exercises, performance_rating, calories) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id",
       [userId, workoutName || "general", durationMinutes, difficulty, 0, 3, calories]
     );
-    res.status(201).json({ sessionId: rows[0].id, message: "Session started" });
+    const sid = rows[0].id;
+    res.status(201).json({ id: sid, sessionId: sid, message: "Session started" });
   } catch (err: any) {
     console.error("Create session error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Mark a session as completed — called by the workout timer hook
+app.put("/api/workout-sessions/:sessionId/complete", async (req, res) => {
+  const sessionId = parseInt(req.params.sessionId);
+  if (isNaN(sessionId)) return res.status(400).json({ message: "Invalid session ID" });
+  const { duration, calories, heartRate } = req.body;
+  try {
+    await pool.query(
+      `UPDATE workout_sessions SET
+        duration = COALESCE($1, duration),
+        calories = COALESCE($2, calories),
+        completed_at = NOW()
+       WHERE id = $3`,
+      [duration ? Math.round(duration / 60) : null, calories || null, sessionId]
+    );
+    res.json({ success: true, message: "Session completed" });
+  } catch (err: any) {
+    console.error("Complete session error:", err);
     res.status(500).json({ message: "Server error" });
   }
 });

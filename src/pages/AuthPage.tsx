@@ -1,8 +1,9 @@
-import { useState, type FC } from "react";
+import { useState, useRef, type FC } from "react";
 import { useLocation } from "wouter";
 import { setAuthUser } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { identifyUser, trackEvent } from "@/lib/analytics";
+import type { AuthUser } from "@/lib/auth";
 
 const POSITIONS = [
   { value: "GK", label: "Goalkeeper", short: "GK", emoji: "🧤" },
@@ -37,11 +38,17 @@ const AuthPage: FC = () => {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
-  const [registeredUserId, setRegisteredUserId] = useState<number | null>(null);
   const [currentPosition, setCurrentPosition] = useState("");
   const [goalPosition, setGoalPosition] = useState("");
   const [country, setCountry] = useState("");
   const [savingPositions, setSavingPositions] = useState(false);
+
+  // Auth data cached locally — NOT written to localStorage until goToApp()
+  // This prevents Router from seeing isAuthenticated()=true mid-signup and
+  // yanking the user out of the multi-step onboarding flow.
+  const pendingAuth = useRef<AuthUser | null>(null);
+  const registeredUserId = useRef<number | null>(null);
+
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
@@ -67,24 +74,27 @@ const AuthPage: FC = () => {
         return;
       }
 
-      setAuthUser({
+      const authData: AuthUser = {
         userId: data.userId,
         username: data.username,
         fullName: data.fullName,
         isPremium: data.isPremium || false,
-      });
+      };
 
-      identifyUser(data.userId, data.username, data.fullName);
-      trackEvent(mode === "login" ? "user_signed_in" : "user_registered", {
-        userId: data.userId,
-        username: data.username,
-      });
-
-      if (mode === "register") {
-        setRegisteredUserId(data.userId);
-        setStep("survey");
-      } else {
+      if (mode === "login") {
+        // Login: commit auth immediately and go to app
+        setAuthUser(authData);
+        identifyUser(data.userId, data.username, data.fullName);
+        trackEvent("user_signed_in", { userId: data.userId, username: data.username });
         navigate("/");
+      } else {
+        // Register: cache auth locally, do NOT write to localStorage yet
+        // so Router doesn't redirect away during the onboarding steps
+        pendingAuth.current = authData;
+        registeredUserId.current = data.userId;
+        identifyUser(data.userId, data.username, data.fullName);
+        trackEvent("user_registered", { userId: data.userId, username: data.username });
+        setStep("survey");
       }
     } catch {
       toast({ title: "Connection Error", description: "Could not reach the server. Please try again.", variant: "destructive" });
@@ -96,42 +106,56 @@ const AuthPage: FC = () => {
   const handleSurveySubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!currentPosition || !goalPosition) {
-      toast({ title: "Please select both positions", variant: "destructive" });
+      toast({ title: "Select both positions", description: "Choose your current and goal position to continue.", variant: "destructive" });
       return;
     }
-    if (!registeredUserId) { setStep("country"); return; }
-    setSavingPositions(true);
-    try {
-      await fetch(`/api/users/${registeredUserId}/position-status`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPosition, goalPosition }),
-      });
-      trackEvent("position_selected", { currentPosition, goalPosition });
-    } catch { /* non-critical */ }
-    finally { setSavingPositions(false); }
+    const uid = registeredUserId.current;
+    if (uid) {
+      setSavingPositions(true);
+      try {
+        await fetch(`/api/users/${uid}/position-status`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ currentPosition, goalPosition }),
+        });
+        trackEvent("position_selected", { currentPosition, goalPosition });
+      } catch {
+        // non-critical — proceed anyway
+      } finally {
+        setSavingPositions(false);
+      }
+    }
     setStep("country");
   };
 
   const handleCountrySubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!country) {
-      toast({ title: "Please select your country", variant: "destructive" });
+      toast({ title: "Select your country", description: "Pick your country to compete on national leaderboards.", variant: "destructive" });
       return;
     }
-    if (registeredUserId) {
+    const uid = registeredUserId.current;
+    if (uid) {
       try {
-        await fetch(`/api/users/${registeredUserId}/profile`, {
+        await fetch(`/api/users/${uid}/profile`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ country }),
         });
-      } catch { /* non-critical */ }
+      } catch {
+        // non-critical
+      }
     }
     setStep("discord");
   };
 
-  const goToApp = () => navigate("/");
+  // Commit auth to localStorage and navigate — only called at the very end
+  const goToApp = () => {
+    if (pendingAuth.current) {
+      setAuthUser(pendingAuth.current);
+    }
+    navigate("/");
+  };
 
   // ── STEP: POSITION SURVEY ─────────────────────────────────────────────────
   if (step === "survey") {
@@ -141,22 +165,12 @@ const AuthPage: FC = () => {
           <div className="absolute inset-0 bg-[#FF6B00]/10" />
           <div className="absolute bottom-0 left-0 right-0 p-6">
             <div className="text-[#FF6B00] font-['Oswald'] text-3xl font-bold tracking-wider">WILD CARD</div>
-            <div className="text-[#E0E0E0] text-sm">Step 2 — Your position goals</div>
+            <div className="text-[#E0E0E0] text-sm">Step 2 of 4 — Your position goals</div>
           </div>
         </div>
 
         <div className="flex-1 px-6 pt-4 pb-10 overflow-y-auto">
-          <div className="flex items-center gap-2 mb-6">
-            {["Account", "Position", "Country", "Community"].map((label, i) => (
-              <div key={i} className="flex items-center gap-1 flex-1">
-                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${i < 1 ? "bg-[#FF6B00] text-black" : i === 1 ? "bg-[#FF6B00] text-black" : "bg-[#2A2A2A] text-gray-500"}`}>
-                  {i < 1 ? "✓" : i + 1}
-                </div>
-                <span className={`text-xs hidden sm:block ${i === 1 ? "text-white font-bold" : "text-gray-500"}`}>{label}</span>
-                {i < 3 && <div className={`flex-1 h-px ${i < 1 ? "bg-[#FF6B00]" : "bg-[#2A2A2A]"}`} />}
-              </div>
-            ))}
-          </div>
+          <StepDots current={1} />
 
           <div className="mb-6">
             <h2 className="font-['Oswald'] text-2xl font-bold text-white mb-1">Your Position Goals</h2>
@@ -217,22 +231,12 @@ const AuthPage: FC = () => {
           <div className="absolute inset-0 bg-[#FF6B00]/10" />
           <div className="absolute bottom-0 left-0 right-0 p-6">
             <div className="text-[#FF6B00] font-['Oswald'] text-3xl font-bold tracking-wider">WILD CARD</div>
-            <div className="text-[#E0E0E0] text-sm">Step 3 — Where are you from?</div>
+            <div className="text-[#E0E0E0] text-sm">Step 3 of 4 — Where are you from?</div>
           </div>
         </div>
 
         <div className="flex-1 px-6 pt-4 pb-10 overflow-y-auto">
-          <div className="flex items-center gap-2 mb-6">
-            {["Account", "Position", "Country", "Community"].map((label, i) => (
-              <div key={i} className="flex items-center gap-1 flex-1">
-                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${i < 2 ? "bg-[#FF6B00] text-black" : i === 2 ? "bg-[#FF6B00] text-black" : "bg-[#2A2A2A] text-gray-500"}`}>
-                  {i < 2 ? "✓" : i + 1}
-                </div>
-                <span className={`text-xs hidden sm:block ${i === 2 ? "text-white font-bold" : "text-gray-500"}`}>{label}</span>
-                {i < 3 && <div className={`flex-1 h-px ${i < 2 ? "bg-[#FF6B00]" : "bg-[#2A2A2A]"}`} />}
-              </div>
-            ))}
-          </div>
+          <StepDots current={2} />
 
           <div className="mb-6">
             <h2 className="font-['Oswald'] text-2xl font-bold text-white mb-1">🌍 Your Country</h2>
@@ -270,11 +274,13 @@ const AuthPage: FC = () => {
           <div className="absolute inset-0 bg-[#FF6B00]/10" />
           <div className="absolute bottom-0 left-0 right-0 p-6">
             <div className="text-[#FF6B00] font-['Oswald'] text-3xl font-bold tracking-wider">WILD CARD</div>
-            <div className="text-[#E0E0E0] text-sm">Step 4 — Join the community</div>
+            <div className="text-[#E0E0E0] text-sm">Step 4 of 4 — Join the community</div>
           </div>
         </div>
 
         <div className="flex-1 px-6 pt-4 pb-10 flex flex-col items-center justify-center text-center">
+          <StepDots current={3} />
+
           <div className="w-20 h-20 bg-[#5865F2]/20 rounded-2xl flex items-center justify-center mb-6">
             <svg className="w-10 h-10 text-[#5865F2]" fill="currentColor" viewBox="0 0 24 24">
               <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.043.03.056a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z" />
@@ -391,5 +397,26 @@ const AuthPage: FC = () => {
     </div>
   );
 };
+
+// ── Step indicator dots ────────────────────────────────────────────────────
+function StepDots({ current }: { current: number }) {
+  const labels = ["Account", "Position", "Country", "Community"];
+  return (
+    <div className="flex items-center gap-2 mb-6">
+      {labels.map((label, i) => (
+        <div key={i} className="flex items-center gap-1 flex-1">
+          <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0
+            ${i < current ? "bg-[#FF6B00] text-black" : i === current ? "bg-[#FF6B00] text-black" : "bg-[#2A2A2A] text-gray-500"}`}>
+            {i < current ? "✓" : i + 1}
+          </div>
+          <span className={`text-xs hidden sm:block truncate ${i === current ? "text-white font-bold" : "text-gray-500"}`}>{label}</span>
+          {i < labels.length - 1 && (
+            <div className={`flex-1 h-px ${i < current ? "bg-[#FF6B00]" : "bg-[#2A2A2A]"}`} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default AuthPage;
