@@ -1,0 +1,236 @@
+ Make sure to triple check everything and test all features after doing all of this and do all of this in one go without my assistance just go ahead 
+
+This is a copy of a project so here’s a look at what happened earlier. We added  a challenge feature where players are given a challenge called test of worth where they either complete a hard challenge based of their workout like doing way more than they are normally required in a set amount of time or record themselves playing a match which would be sent to my gmail (wildcard3rf@gmail.com) challenges would only be sent to those who got to level 40 and higher, they would get more challenges as they progress until level 200 where it stops pls find work from the file related to this and make sure it works and has no bugs or errors attached to it (players will be notified in app if they get a challenge so make sure that works)
+
+We added a new and vital feature where players at the first entry of signup are given a choice where they pick their current position and position they want to achieve. Then the app would generate workouts and techniques based around the position picked by the user. This makes it responsive and you must find it in the file and make sure that the feature is alive and running with no bugs and no problems also. The training is to be progressively different so update the workout reps or sets every week and keep that schedule permanently 
+
+We also added a discord server link so users can interact and share feedback this was meant to be placed in the last part of create account   Here’s the link https://discord.gg/p8CmbBGyT
+Make sure that it’s integrated securely on the settings page so it’s accessible ofc you can pull up from the file if you need help so remember one on the last part of the create account and another permanently on the settings page and accessible 
+Also the ai position analysis will be unavailable for use so make sure to add a lock icon so so players can’t access it as it’s not allowed to be accessible 
+
+Now these comments above are a reminder of what my other work looks like so pull your info from the zip file and make sure that each of these are implemented and working 
+
+Now for the problems, again triple check these problems and test them thoroughly
+
+The signup process and sign process is buggy. If a user finishes the position survey or the sign in then press enter then the app just does nothing and it takes until the have to refresh it completely for it to get them In. That’s a problem because the app is meant to process the info instantly to give customer satisfaction and security so fix it by making it faster for the user to go through. This isn’t a matter of changing the signup/signin process but speeding up the time it takes the app to acknowledge them and implement them to the users experience 
+This is a common problem and I would like you to fix. If a user goes on training then workouts and taps on it. The user is shown a plain empty black screen with no workouts. So fix that by making sure that users can access the workouts but also since I forgot, it’s imperative that you add a permanent database as this is a fitness app. Technique’s also show a message of no techniques for this category, fix that as every position should have 5-9techniques for the user to learn. Remember this is a fitness app so make sure workouts are saved,logged and converted into leaderboard points, levels to be shown on stats and the main dashboard and to help with market valuation which will be based of a 5 months progress where xp and points are converted to usd for the players value 
+The countries feature that i asked isn’t showing so i need you to implement that into the app as one of the signup process and something to be shown. It will be mostly shown on the leaderboard and users can filter by country to see who’s the best in their country. Also after this the leaderboard has my test account so remove them but this doesn’t apply for any other accounts made as they are to be permanent on the leaderboard. Remember to keep the penalty of missing your daily workout for 3 days where users will be significantly put down 5 places lower than what they were. Also the leaderboard now goes to 1000 and can be filtered to top 10 or top 5 international or in your country 
+Make sure that posthog is secure and working 
+Note: remember to check every single thing I told you. Remember this is an app that will get about 1000 users daily. You cannot mess up. Maintain strict control and security throughout everything 
+Add a loading screen where it shows the wildcard puzzle logo  image which I will show on here. Don’t do anything extra with it, just place the logo as a loading screen image. Make sure this works and after that do another test one from signup to training as if you’re the user I order to help find any bugs or errors 
+Please implement a centralized caching layer for our football fitness and coaching app to improve page load speeds and reduce database overhead. 
+
+Depending on whether this project is built on Node.js or Python, apply the relevant script below to our backend server.
+
+### 1. SYSTEM CONFIGURATION
+- Install the standard 'redis' package for our environment.
+- Initialize a connection to the local Redis instance.
+- Ensure the app gracefully falls back to the primary database if Redis is temporarily unavailable.
+
+### 2. ARCHITECTURE CODE (Agent: Use the block matching our language)
+
+--- IF PYTHON (Flask/FastAPI) ---
+import redis
+import json
+import logging
+
+# Initialize Redis client
+try:
+    cache = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+except Exception as e:
+    logging.error(f"Redis initialization failed: {e}")
+    cache = None
+
+def get_cached_football_data(cache_key, db_fetch_callback, expiry_seconds=3600):
+    """
+    Generic wrapper to cache static technique videos or position workout templates.
+    """
+    if cache:
+        try:
+            cached_data = cache.get(cache_key)
+            if cached_data:
+                return json.loads(cached_data)  # Instant return
+        except Exception as e:
+            logging.warning(f"Cache read error: {e}")
+
+    # Fallback to main database fetch
+    fresh_data = db_fetch_callback()
+
+    if cache and fresh_data:
+        try:
+            cache.setex(cache_key, expiry_seconds, json.dumps(fresh_data))
+        except Exception as e:
+            logging.warning(f"Cache write error: {e}")
+
+    return fresh_data
+---------------------------------
+
+--- IF NODE.JS (Express) ---
+const redis = require('redis');
+const cacheClient = redis.createClient({ url: 'redis://localhost:6379' });
+
+cacheClient.on('error', (err) => console.error('Redis Cache Error:', err));
+cacheClient.connect().catch(console.error);
+
+// Middleware wrapper for static coaching assets
+async function routeCacheMiddleware(req, res, next) {
+    // Generate unique key based on route path (e.g., /api/techniques or /api/workouts/winger)
+    const cacheKey = `football_cache:${req.originalUrl || req.url}`;
+    
+    if (!cacheClient.isOpen) {
+        return next(); // Skip cache safely if Redis is down
+    }
+
+    try {
+        const cachedData = await cacheClient.get(cacheKey);
+        if (cachedData) {
+            return res.json(JSON.parse(cachedData)); // Return instantly
+        }
+        
+        // Intercept response to save database data to cache before sending
+        res.originalJson = res.json;
+        res.json = (body) => {
+            cacheClient.setEx(cacheKey, 3600, JSON.stringify(body)); // Cache for 1 hour
+            res.originalJson(body);
+        };
+        next();
+    } catch (err) {
+        next();
+    }
+}
+module.exports = { routeCacheMiddleware };
+----------------------------
+
+### 3. CACHING RULE APPLICATION
+Please apply this logic to our endpoints using these strict business rules:
+- AGGRESSIVE CACHING: Apply this to the 'Technique Library' (video links, skill descriptions) and the 'Position-BaseWorkout Templates' (e.g., Winger Stamina, Center-Back Strength).
+- LIVE BYPASS (NO CACHE): Ensure that user-specific active inputs—such as rest-period timers, live check-ins, fitness score updates, or progress tracking sheets—always bypass this cache and talk directly to the main database.
+
+8. Make sure that if this project is to be transferred or given a new feature, that all things and current features on the app be permanently perfect,secure and working to prevent doing more work over again 
+
+
+9. Lastly when you think you have finished, run a quick walkthrough the web app to make sure the process of signing up, working out and data being recorded works. Do this walkthrough for every change that you make that I have addressed and do it 3 times after you are finished to be sure. 
+
+10. The front dashboard says strength stat with upper body and lower body. To make it simple scrap that and just show the players levels and xp as well as there position and what they should focus on to get that. Once you do that do a walkthrough the app as a user to check for any errors 
+
+11. Please implement a robust Rate Limiting layer for our football fitness and coaching app to protect our intellectual property (workout/technique data) and secure our authentication system.
+
+Depending on whether this project is built on Node.js or Python, apply the relevant script below to our backend server. Reuse our existing Redis client connection if possible.
+
+### 1. RATE LIMITING CRITERIA
+- LOGIN / AUTHENTICATION: Strict limit of 5 attempts per minute per IP address. Lock out users temporarily if they exceed this.
+- API / WORKOUT & TECHNIQUE ENDPOINTS: Generous limit of 60 requests per minute per IP address. This allows beginner players to browse drills fluidly but blocks automated data-scraping bots.
+- ERROR HANDLING: Return a standard HTTP 429 "Too Many Requests" status code with a user-friendly message when limits are breached.
+
+### 2. ARCHITECTURE CODE (Agent: Use the block matching our language)
+
+--- IF PYTHON (Flask/FastAPI using flask-limiter or custom Redis) ---
+import time
+import logging
+from flask import request, jsonify
+
+# Agent: Ensure 'cache' (Redis client from our caching script) is imported here.
+# If Redis is unavailable, fallback gracefully to allow requests.
+
+def is_rate_limited(ip_address, endpoint_type, limit, window=60):
+    """
+    Tracks and limits requests per IP address using Redis.
+    """
+    if not cache:
+        return False # Fallback safely if Redis is down
+        
+    current_time = int(time.time())
+    # Unique key for this user IP and endpoint type (e.g., ratelimit:192.168.1.1:auth)
+    key = f"ratelimit:{ip_address}:{endpoint_type}"
+    
+    try:
+        # Use a Redis pipeline to log the transaction safely
+        pipe = cache.pipeline()
+        pipe.zremrangebyscore(key, 0, current_time - window) # Clear old requests
+        pipe.zadd(key, {str(current_time): current_time})
+        pipe.zcard(key)
+        pipe.expire(key, window)
+        results = pipe.execute()
+        
+        request_count = results[2]
+        return request_count > limit
+    except Exception as e:
+        logging.error(f"Rate limiting check failed: {e}")
+        return False
+
+# Example application for Agent:
+# @app.before_request
+# def check_limits():
+#     if request.path.startswith('/api/auth') and is_rate_limited(request.remote_addr, 'auth', 5):
+#         return jsonify({"error": "Too many login attempts. Please try again in a minute."}), 429
+#     if request.path.startswith('/api/workouts') and is_rate_limited(request.remote_addr, 'api', 60):
+#         return jsonify({"error": "Speed limit exceeded. Take a breath before your next drill!"}), 429
+---------------------------------
+
+--- IF NODE.JS (Express using express-rate-limit or custom Redis) ---
+const redis = require('redis');
+// Agent: Reuse the existing cacheClient from our caching script.
+
+async function checkRateLimit(endpointType, maxRequests, windowSeconds = 60) {
+    return async (req, res, next) => {
+        if (!cacheClient || !cacheClient.isOpen) {
+            return next(); // Safe fallback if Redis is down
+        }
+
+        const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+        const key = `ratelimit:${ip}:${endpointType}`;
+        const currentTime = Math.floor(Date.now() / 1000);
+
+        try {
+            const pipe = cacheClient.multi();
+            pipe.zRemRangeByScore(key, 0, currentTime - windowSeconds);
+            pipe.zAdd(key, { score: currentTime, value: currentTime.toString() + Math.random() });
+            pipe.zCard(key);
+            pipe.expire(key, windowSeconds);
+            
+            const results = await pipe.exec();
+            const requestCount = results[2];
+
+            if (requestCount > maxRequests) {
+                const message = endpointType === 'auth' 
+                    ? "Too many login attempts. Please try again in a minute."
+                    : "Speed limit exceeded. Take a breath before your next drill!";
+                return res.status(429).json({ error: message });
+            }
+            next();
+        } catch (err) {
+            console.error('Rate limiting error:', err);
+            next();
+        }
+    };
+}
+
+// Example application for Agent:
+// app.use('/api/auth', await checkRateLimit('auth', 5));
+// app.use('/api/workouts', await checkRateLimit('api', 60));
+// app.use('/api/techniques', await checkRateLimit('api', 60));
+----------------------------
+
+### 3. IMPLEMENTATION INSTRUCTIONS
+Please apply these rate-limiting guards directly to our routing files. Ensure that when a beginner player triggers a limit on the workouts, the error message encourages them friendly (e.g., telling them to take a rest break between drills) rather than looking like a harsh system crash.
+
+12.Please perform a complete codebase audit and robust error-proofing sweep across our football fitness and coaching app. Our goal is to ensure absolute stability, zero runtime crashes, and a flawless user experience for beginner players.
+
+Implement the following software resilience patterns:
+
+### 1. COMPREHENSIVE ERROR HANDLING & CRASH PREVENTION
+- WRAP ALL ROUTES: Ensure every single backend API endpoint uses explicit try/catch blocks (or try/except in Python). No unhandled server crashes are allowed.
+- CLEAN ERROR RESPONSES: If an error occurs, intercept it globally. Never show the user raw code stack traces. Instead, return a clean JSON error response, such as: {"success": false, "message": "Something went wrong. Please refresh your training drill and try again."}
+
+### 2. FAULT-TOLERANT INTEGRATIONS (REDIS & VIDEOS)
+- CACHE RESILIENCE: If our Redis cache fails or times out, the app must gracefully bypass it and pull data directly from the main database without interrupting the coach or player.
+- VIDEO FALLBACKS: Ensure that if a technique video iframe or asset URL fails to load, the UI displays a clean placeholder card with an intuitive message ("Video loading or offline—follow text steps below") instead of breaking the page layout.
+
+### 3. USER INPUT INPUT VALIDATION
+- Clean and sanitize all data sent by users (like logging workout scores, updating player positions, or entering profile details) before saving it to prevent data corruption.
+- Defend against partial or missing data fields if a user accidentally skips an input on a training form.
+
+### 4. CACHE CLEANSING & TEST CODE PURGE
+- Clear out any stale, old test cache keys currently sitting in our system.
+- Run an automated code linter check to fix any broken imports, unused variables, or syntax typos.
+- Run a final end-to-end simulation of a beginner registering, browsing the winger/midfielder drills, loading a cached video, and logging a completed workout to verify the entire system loop is fully operational.

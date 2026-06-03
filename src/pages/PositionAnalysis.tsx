@@ -1,7 +1,7 @@
 import { useState, type FC } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Target, Edit2, Check, X, Zap, Star } from "lucide-react";
+import { Target, Edit2, Check, X, Lock } from "lucide-react";
 import { userSessionManager } from "@/lib/userSession";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -40,19 +40,9 @@ const PositionStatus: FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editCurrentPos, setEditCurrentPos] = useState("");
   const [editGoalPos, setEditGoalPos] = useState("");
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<any>(null);
 
   const { data: positionData, isLoading } = useQuery<{ currentPosition: string | null; goalPosition: string | null }>({
     queryKey: [`/api/users/${currentUserId}/position-status`],
-    retry: false,
-  });
-
-  const { data: aiUsage } = useQuery<{
-    valuation: { used: number; limit: number };
-    positionAnalysis: { used: number; limit: number };
-  }>({
-    queryKey: [`/api/users/${currentUserId}/ai-usage`],
     retry: false,
   });
 
@@ -81,40 +71,10 @@ const PositionStatus: FC = () => {
     updatePositionMutation.mutate({ currentPosition: editCurrentPos, goalPosition: editGoalPos });
   };
 
-  const analyzePosition = async () => {
-    const remaining = aiUsage ? aiUsage.positionAnalysis.limit - aiUsage.positionAnalysis.used : 0;
-    if (remaining <= 0) {
-      toast({ title: "Limit Reached", description: "You've used all 5 AI position analyses.", variant: "destructive" });
-      return;
-    }
-    setIsAnalyzing(true);
-    try {
-      const response = await fetch(`/api/users/${currentUserId}/position/analyze`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      if (response.ok) {
-        setAnalysisResult(await response.json());
-        queryClient.invalidateQueries({ queryKey: [`/api/users/${currentUserId}/ai-usage`] });
-        toast({ title: "Analysis Complete", description: "Your position analysis is ready!" });
-      } else {
-        const err = await response.json();
-        toast({ title: "Error", description: err.message, variant: "destructive" });
-      }
-    } catch {
-      toast({ title: "Error", description: "Analysis failed. Try again.", variant: "destructive" });
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
   const goalPos = positionData?.goalPosition;
   const currentPos = positionData?.currentPosition;
   const trainingFocus = goalPos ? (POSITION_TRAINING_FOCUS[goalPos] || []) : [];
   const positionInfo = (pos: string | null | undefined) => pos ? POSITIONS.find(p => p.value === pos) : null;
-  const posAnalysisUsed = aiUsage?.positionAnalysis.used ?? 0;
-  const posAnalysisLimit = aiUsage?.positionAnalysis.limit ?? 5;
-  const posAnalysisRemaining = posAnalysisLimit - posAnalysisUsed;
 
   return (
     <section className="tab-content animate-in slide-in-from-left duration-300">
@@ -122,7 +82,7 @@ const PositionStatus: FC = () => {
         <h2 className="font-['Montserrat'] text-xl font-bold uppercase mb-1 border-l-4 border-[#FF6B00] pl-3">
           Position Status
         </h2>
-        <p className="text-gray-400 text-sm pl-4">Manage your position goals and get AI coaching advice</p>
+        <p className="text-gray-400 text-sm pl-4">Manage your position goals and training focus</p>
       </div>
 
       {/* Current Position + Goal */}
@@ -139,15 +99,8 @@ const PositionStatus: FC = () => {
               </label>
               <div className="grid grid-cols-2 gap-2">
                 {POSITIONS.map(pos => (
-                  <button
-                    key={pos.value}
-                    onClick={() => setEditCurrentPos(pos.value)}
-                    className={`p-3 rounded-lg border text-left transition-all ${
-                      editCurrentPos === pos.value
-                        ? "border-[#FF6B00] bg-[#FF6B00]/10 text-white"
-                        : "border-[#2A2A2A] bg-[#0A0A0A] text-gray-400 hover:border-[#FF6B00]/50"
-                    }`}
-                  >
+                  <button key={pos.value} onClick={() => setEditCurrentPos(pos.value)}
+                    className={`p-3 rounded-lg border text-left transition-all ${editCurrentPos === pos.value ? "border-[#FF6B00] bg-[#FF6B00]/10 text-white" : "border-[#2A2A2A] bg-[#0A0A0A] text-gray-400 hover:border-[#FF6B00]/50"}`}>
                     <span className="text-lg mr-2">{pos.emoji}</span>
                     <span className="font-bold text-sm">{pos.short}</span>
                     <span className="text-xs text-gray-500 ml-1">— {pos.label}</span>
@@ -161,15 +114,8 @@ const PositionStatus: FC = () => {
               </label>
               <div className="grid grid-cols-2 gap-2">
                 {POSITIONS.map(pos => (
-                  <button
-                    key={pos.value}
-                    onClick={() => setEditGoalPos(pos.value)}
-                    className={`p-3 rounded-lg border text-left transition-all ${
-                      editGoalPos === pos.value
-                        ? "border-[#FF6B00] bg-[#FF6B00]/10 text-white"
-                        : "border-[#2A2A2A] bg-[#0A0A0A] text-gray-400 hover:border-[#FF6B00]/50"
-                    }`}
-                  >
+                  <button key={pos.value} onClick={() => setEditGoalPos(pos.value)}
+                    className={`p-3 rounded-lg border text-left transition-all ${editGoalPos === pos.value ? "border-[#FF6B00] bg-[#FF6B00]/10 text-white" : "border-[#2A2A2A] bg-[#0A0A0A] text-gray-400 hover:border-[#FF6B00]/50"}`}>
                     <span className="text-lg mr-2">{pos.emoji}</span>
                     <span className="font-bold text-sm">{pos.short}</span>
                     <span className="text-xs text-gray-500 ml-1">— {pos.label}</span>
@@ -178,19 +124,12 @@ const PositionStatus: FC = () => {
               </div>
             </div>
             <div className="flex gap-3 pt-2">
-              <Button
-                onClick={handleSave}
-                disabled={updatePositionMutation.isPending}
-                className="flex-1 bg-[#FF6B00] hover:bg-orange-600 text-black font-bold"
-              >
+              <Button onClick={handleSave} disabled={updatePositionMutation.isPending}
+                className="flex-1 bg-[#FF6B00] hover:bg-orange-600 text-black font-bold">
                 <Check className="w-4 h-4 mr-2" />
                 {updatePositionMutation.isPending ? "Saving..." : "Save Changes"}
               </Button>
-              <Button
-                onClick={() => setIsEditing(false)}
-                variant="outline"
-                className="border-[#2A2A2A] text-white hover:bg-[#1A1A1A]"
-              >
+              <Button onClick={() => setIsEditing(false)} variant="outline" className="border-[#2A2A2A] text-white hover:bg-[#1A1A1A]">
                 <X className="w-4 h-4" />
               </Button>
             </div>
@@ -199,10 +138,7 @@ const PositionStatus: FC = () => {
           <div>
             <div className="flex items-center justify-between mb-5">
               <h3 className="font-['Oswald'] text-white text-base font-bold">Your Position Profile</h3>
-              <button
-                onClick={handleEdit}
-                className="flex items-center gap-1 text-[#FF6B00] text-sm font-medium hover:text-orange-400"
-              >
+              <button onClick={handleEdit} className="flex items-center gap-1 text-[#FF6B00] text-sm font-medium hover:text-orange-400">
                 <Edit2 className="w-3.5 h-3.5" /> Edit
               </button>
             </div>
@@ -263,88 +199,31 @@ const PositionStatus: FC = () => {
         </Card>
       )}
 
-      {/* AI Position Analysis */}
-      <Card className="bg-[#000000] border-[#2A2A2A] p-5 mb-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-['Oswald'] text-white text-base font-bold">AI Position Analysis</h3>
-          <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-            posAnalysisRemaining > 0 ? "bg-[#FF6B00]/20 text-[#FF6B00]" : "bg-gray-800 text-gray-500"
-          }`}>
-            {posAnalysisRemaining}/{posAnalysisLimit} left
-          </span>
+      {/* AI Position Analysis — LOCKED */}
+      <Card className="bg-[#000000] border-[#2A2A2A] p-5 mb-4 relative overflow-hidden">
+        {/* Lock overlay */}
+        <div className="absolute inset-0 bg-[#000000]/70 backdrop-blur-[2px] z-10 flex flex-col items-center justify-center rounded-lg">
+          <div className="w-14 h-14 bg-[#1A1A1A] border border-[#3A3A3A] rounded-2xl flex items-center justify-center mb-3">
+            <Lock className="w-7 h-7 text-gray-500" />
+          </div>
+          <div className="font-['Oswald'] text-gray-400 text-lg font-bold mb-1">Coming Soon</div>
+          <div className="text-gray-600 text-xs text-center max-w-[200px]">
+            AI Position Analysis is temporarily unavailable. Check back soon.
+          </div>
         </div>
-        <p className="text-gray-400 text-sm mb-4">
-          Get AI-powered coaching advice based on your training data and position goals.
-        </p>
-        {posAnalysisRemaining <= 0 ? (
-          <div className="bg-[#1A1A1A] rounded-lg p-4 text-center">
-            <p className="text-gray-400 text-sm">You've used all {posAnalysisLimit} AI position analyses.</p>
-          </div>
-        ) : (
-          <Button
-            onClick={analyzePosition}
-            disabled={isAnalyzing || !goalPos}
-            className="w-full bg-[#FF6B00] hover:bg-orange-600 text-black font-bold"
-          >
-            <Zap className="w-4 h-4 mr-2" />
-            {isAnalyzing ? "Analysing..." : `Run AI Analysis (${posAnalysisRemaining} left)`}
-          </Button>
-        )}
-        {!goalPos && posAnalysisRemaining > 0 && (
-          <p className="text-gray-500 text-xs text-center mt-2">Set a goal position first to run analysis</p>
-        )}
-      </Card>
 
-      {/* Analysis Result */}
-      {analysisResult && (
-        <Card className="bg-[#000000] border-[#FF6B00]/30 p-5 mb-4">
-          <div className="flex items-center gap-2 mb-4">
-            <Star className="w-4 h-4 text-[#FF6B00]" />
-            <h3 className="font-['Oswald'] text-white text-base font-bold">Latest Analysis</h3>
+        {/* Background content (blurred behind overlay) */}
+        <div className="opacity-30 select-none pointer-events-none">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-['Oswald'] text-white text-base font-bold">AI Position Analysis</h3>
+            <span className="text-xs font-bold px-2 py-1 rounded-full bg-[#FF6B00]/20 text-[#FF6B00]">5/5 left</span>
           </div>
-          <div className="space-y-4">
-            <div className="bg-[#0A0A0A] rounded-lg p-4 border border-[#1A1A1A]">
-              <div className="text-[#FF6B00] text-xs font-['Oswald'] uppercase tracking-wide mb-2">Primary Recommendation</div>
-              <div className="text-white font-bold text-lg">{analysisResult.primaryPosition}</div>
-              {analysisResult.secondaryPosition && (
-                <div className="text-gray-400 text-sm">Secondary: {analysisResult.secondaryPosition}</div>
-              )}
-            </div>
-            {analysisResult.coachAdvice && (
-              <div className="bg-[#0A0A0A] rounded-lg p-4 border border-[#1A1A1A]">
-                <div className="text-[#FF6B00] text-xs font-['Oswald'] uppercase tracking-wide mb-2">Coach Advice</div>
-                <p className="text-gray-300 text-sm leading-relaxed">{analysisResult.coachAdvice}</p>
-              </div>
-            )}
-            {analysisResult.strengths?.length > 0 && (
-              <div>
-                <div className="text-[#FF6B00] text-xs font-['Oswald'] uppercase tracking-wide mb-2">Strengths</div>
-                <div className="space-y-1">
-                  {analysisResult.strengths.map((s: string, i: number) => (
-                    <div key={i} className="flex items-center gap-2 text-sm text-gray-300">
-                      <div className="w-1.5 h-1.5 bg-green-500 rounded-full" />
-                      {s}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {analysisResult.areasToImprove?.length > 0 && (
-              <div>
-                <div className="text-[#FF6B00] text-xs font-['Oswald'] uppercase tracking-wide mb-2">Areas to Improve</div>
-                <div className="space-y-1">
-                  {analysisResult.areasToImprove.map((s: string, i: number) => (
-                    <div key={i} className="flex items-center gap-2 text-sm text-gray-300">
-                      <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full" />
-                      {s}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </Card>
-      )}
+          <p className="text-gray-400 text-sm mb-4">Get AI-powered coaching advice based on your training data and position goals.</p>
+          <Button disabled className="w-full bg-[#FF6B00] text-black font-bold opacity-50 cursor-not-allowed">
+            Run AI Analysis
+          </Button>
+        </div>
+      </Card>
     </section>
   );
 };

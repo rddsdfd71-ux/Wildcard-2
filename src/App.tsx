@@ -1,4 +1,5 @@
 import { Switch, Route, useLocation } from "wouter";
+import { useState } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -17,6 +18,7 @@ import Subscription from "@/pages/Subscription";
 import Header from "@/components/Header";
 import MainNavigation from "@/components/MainNavigation";
 import BottomNavigation from "@/components/BottomNavigation";
+import LoadingScreen from "@/components/LoadingScreen";
 import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { UpdatePrompt } from "@/components/UpdatePrompt";
@@ -56,12 +58,15 @@ function Router() {
 }
 
 function App() {
+  const [loading, setLoading] = useState(true);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AppStateProvider>
           <Toaster />
-          <Router />
+          {loading && <LoadingScreen onDone={() => setLoading(false)} />}
+          {!loading && <Router />}
         </AppStateProvider>
       </TooltipProvider>
     </QueryClientProvider>
